@@ -3,50 +3,48 @@ package log
 // go test -check.f 'BookCacheSuit.TestBookReadProcess'
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"testing"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"gopkg.in/check.v1"
 )
 
-func Test(t *testing.T) {
-	check.TestingT(t)
-}
+// func TestInit(t *testing.T) {
+// 	Init()
+// 	defer DLogger.Sync()
+// 	defer SLogger.Sync()
 
-type LoggerSuit struct{}
+// 	DLogger.Info("diagosis info log")
 
-var _ = check.Suite(&LoggerSuit{})
+// 	SLogger.Info("static info log")
 
-func (s *LoggerSuit) TestBookCacheCfg(c *check.C) {
-	encoderConfig := zapcore.EncoderConfig{
-		MessageKey:     "msg",
-		LevelKey:       "level",
-		TimeKey:        "time",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.FullCallerEncoder,
-	}
-	atomLevel := zap.NewAtomicLevelAt(zap.DebugLevel)
-	cfg := zap.Config{
-		Level:             atomLevel,
-		Development:       false,
-		DisableCaller:     true,
-		DisableStacktrace: true,
-		Encoding:          "json",
-		EncoderConfig:     encoderConfig,
-		OutputPaths:       []string{"stdout", "/tmp/stdout"},
-		ErrorOutputPaths:  []string{"stdout", "/tmp/zaperr"},
-		InitialFields:     map[string]interface{}{"foo": "bar"},
+// }
+
+func TestChangeDloggerLevel(t *testing.T) {
+	Init()
+	defer DLogger.Sync()
+
+	DLogger.Info("this debug log should show")
+
+	body := map[string]string{"level": "info"}
+	jsonBody, _ := json.Marshal(body)
+	log.Println(string(jsonBody))
+	url := fmt.Sprintf("http://localhost:%d/dlogger", DLoggerPort)
+	req, _ := http.NewRequest("PUT", url, bytes.NewBuffer(jsonBody))
+	req.Header.Add("Content-Type", "application/json")
+	if resp, err := http.DefaultClient.Do(req); err != nil {
+		log.Printf("修改日志等等级出错,err=%v", err)
+	} else {
+		defer resp.Body.Close()
+		code := resp.StatusCode
+		body, _ := ioutil.ReadAll(resp.Body)
+		log.Printf("statusCode=%d,body=%s", code, body)
 	}
 
-	sl, err := NewDiagosisLogger(&cfg)
-	c.Assert(err, check.IsNil)
-	c.Assert(sl, check.NotNil)
+	DLogger.Debug("this debug log should not show")
+	DLogger.Info("this info log should show")
 
 }
